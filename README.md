@@ -33,7 +33,7 @@ This branch is purely based on `Pyrogram V2` with more stability And this is bas
 - auto pin messages(if they are pinned)
 - login via phone number
 
-## Deploying Guide - [TEAM SPY](https://t.me/save_restricted_content_bots)
+## Deploying Guide - [SK TEAM](https://t.me/Test_original_chat)
 
 ### How to get required vars
  
