@@ -1,8 +1,8 @@
 #devgaganin
-
 import asyncio
 import time
 import os
+import re
 import subprocess
 import requests
 from devgagan import app
@@ -36,8 +36,9 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
 
     
     if 't.me/c/' in msg_link or 't.me/b/' in msg_link:
+        parts = msg_link.split("/")
         if 't.me/b/' not in msg_link:
-            chat = int('-100' + str(msg_link.split("/")[-2]))
+            chat = int('-100' + str(parts[parts.index('c') + 1])) # topic group/subgroup support enabled
         else:
             chat = msg_link.split("/")[-2]       
         file = ""
@@ -90,7 +91,9 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 if ggn_ext.isalpha() and len(ggn_ext) <= 4:
                     if ggn_ext.lower() == 'mov':
                         original_file_name = str(file)[:last_dot_index]
-                        file_extension = 'mp4'
+                        file_extension = ggn_ext.lower()
+                        if file_extension == 'mov': # fixed mov
+                            file_extension = 'mp4'
                     else:
                         original_file_name = str(file)[:last_dot_index]
                         file_extension = ggn_ext
@@ -104,7 +107,10 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
             delete_words = load_delete_words(chatx)
             for word in delete_words:
                 original_file_name = original_file_name.replace(word, "")
-            video_file_name = original_file_name + " " + custom_rename_tag    
+            video_file_name = original_file_name + " " + custom_rename_tag
+            replacements = load_replacement_words(chatx)
+            for word, replace_word in replacements.items():
+                original_file_name = original_file_name.replace(word, replace_word)
             new_file_name = original_file_name + " " + custom_rename_tag + "." + file_extension
             os.rename(file, new_file_name)
             file = new_file_name
@@ -135,14 +141,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 custom_caption = get_user_caption_preference(sender)
                 original_caption = msg.caption if msg.caption else ''
                 final_caption = f"{original_caption}" if custom_caption else f"{original_caption}"
-                lines = final_caption.split('\n')
-                processed_lines = []
-                for line in lines:
-                    for word in delete_words:
-                        line = line.replace(word, '')
-                    if line.strip():
-                        processed_lines.append(line.strip())
-                final_caption = '\n'.join(processed_lines)
+                
                 replacements = load_replacement_words(sender)
                 for word, replace_word in replacements.items():
                     final_caption = final_caption.replace(word, replace_word)
@@ -185,14 +184,6 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 custom_caption = get_user_caption_preference(sender)
                 original_caption = msg.caption if msg.caption else ''
                 final_caption = f"{original_caption}" if custom_caption else f"{original_caption}"
-                lines = final_caption.split('\n')
-                processed_lines = []
-                for line in lines:
-                    for word in delete_words:
-                        line = line.replace(word, '')
-                    if line.strip():
-                        processed_lines.append(line.strip())
-                final_caption = '\n'.join(processed_lines)
                 replacements = load_replacement_words(sender)
                 for word, replace_word in replacements.items():
                     final_caption = final_caption.replace(word, replace_word)
@@ -212,38 +203,54 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 custom_caption = get_user_caption_preference(sender)
                 original_caption = msg.caption if msg.caption else ''
                 final_caption = f"{original_caption}" if custom_caption else f"{original_caption}"
-                lines = final_caption.split('\n')
-                processed_lines = []
-                for line in lines:
-                    for word in delete_words:
-                        line = line.replace(word, '')
-                    if line.strip():
-                        processed_lines.append(line.strip())
-                final_caption = '\n'.join(processed_lines)
                 replacements = load_replacement_words(chatx)
                 for word, replace_word in replacements.items():
                     final_caption = final_caption.replace(word, replace_word)
                 caption = f"{final_caption}\n\n__**{custom_caption}**__" if custom_caption else f"{final_caption}"
+                file_extension = file_extension.lower() # fixed all video document files sent as video files
+                video_extensions = {
+    'mkv', 'mp4', 'webm', 'mpe4', 'mpeg', 'ts', 'avi', 'flv', 'mov', 
+    'm4v', '3gp', '3g2', 'wmv', 'vob', 'ogv', 'ogx', 'qt', 'f4v', 
+    'f4p', 'f4a', 'f4b', 'dat', 'rm', 'rmvb', 'asf', 'amv', 'divx'
+                }
 
                 target_chat_id = user_chat_ids.get(chatx, chatx)
                 try:
-                    devgaganin = await app.send_document(
-                        chat_id=target_chat_id,
-                        document=file,
-                        caption=caption,
-                        thumb=thumb_path,
-                        progress=progress_bar,
-                        progress_args=(
-                        '**`Uploading...`**\n',
-                        edit,
-                        time.time()
+                    if file_extension in video_extensions:
+                        metadata = video_metadata(file)
+                        width= metadata['width']
+                        height= metadata['height']
+                        duration= metadata['duration']
+                        thumb_path = await screenshot(file, duration, chatx)
+                        devgaganin = await app.send_video(
+                            chat_id=target_chat_id,
+                            video=file,
+                            caption=caption,
+                            supports_streaming=True,
+                            height=height,
+                            width=width,
+                            duration=duration,
+                            thumb=thumb_path,
+                            progress=progress_bar,
+                            progress_args=(
+                                '**`Uploading...`**\n',
+                                edit,
+                                time.time()
+                            )
                         )
-                    )
-                    if msg.pinned_message:
-                        try:
-                            await devgaganin.pin(both_sides=True)
-                        except Exception as e:
-                            await devgaganin.pin()
+                    else:
+                        devgaganin = await app.send_document(
+                            chat_id=target_chat_id,
+                            document=file,
+                            caption=caption,
+                            thumb=thumb_path,
+                            progress=progress_bar,
+                            progress_args=(
+                                '**`Uploading...`**\n',
+                                edit,
+                                time.time()
+                            )
+                        )
 
                     await devgaganin.copy(LOG_GROUP)
                 except:
@@ -518,11 +525,21 @@ async def callback_query_handler(event):
 
     elif event.data == b'reset':
         try:
+            user_id_str = str(user_id)
             collection.update_one(
                 {"_id": user_id},
-                {"$unset": {"delete_words": ""}}
+                {"$unset": {
+                    "delete_words": "",
+                    "replacement_words": ""
+                }}
             )
-            await event.respond("All words have been removed from your delete list.")
+            user_chat_ids.pop(user_id, None)
+            user_rename_preferences.pop(user_id_str, None)
+            user_caption_preferences.pop(user_id_str, None)
+            thumbnail_path = f"{user_id}.jpg"
+            if os.path.exists(thumbnail_path):
+                os.remove(thumbnail_path)
+            await event.respond("✅ Reset successfully, to logout click /logout")
         except Exception as e:
             await event.respond(f"Error clearing delete list: {e}")
     
