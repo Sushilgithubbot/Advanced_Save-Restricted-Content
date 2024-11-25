@@ -19,6 +19,6 @@ async def start(_, message):
     join = await subscribe(_, message)
     if join == 1:
         return
-    await message.reply_photo(photo="https://graph.org/PERSONAL-BOT-2-08-14",
+    await message.reply_photo(photo="https://graph.org/file/4e80dc2f4f6f2ddadb4d2.jpg",
                               caption=script.START_TXT.format(message.from_user.mention), 
                               reply_markup=buttons)
